@@ -119,4 +119,32 @@ describe("BreadcrumbContext", () => {
     expect(buildDocumentTitle([{ label: "Inbox" }], "  ")).toBe("Inbox • Paperclip");
     expect(buildDocumentTitle([], null)).toBe("Paperclip");
   });
+
+  it("leads the deepest crumb title with its identifier when present", () => {
+    expect(
+      buildDocumentTitle(
+        [{ label: "Issues", href: "/issues" }, { label: "First task prompt", identifier: "PAP-1204" }],
+        "Anachronist Wiki",
+      ),
+    ).toBe("PAP-1204 — First task prompt • Issues • Anachronist Wiki • Paperclip");
+  });
+
+  it("keeps the legacy title format for crumbs without an identifier", () => {
+    expect(buildDocumentTitle([{ label: "Inbox" }, { label: "Settings" }], null)).toBe(
+      "Settings • Inbox • Paperclip",
+    );
+  });
+
+  it("does not duplicate the identifier when the label already carries it", () => {
+    expect(buildDocumentTitle([{ label: "PAP-1204", identifier: "PAP-1204" }])).toBe(
+      "PAP-1204 • Paperclip",
+    );
+    expect(buildDocumentTitle([{ label: "PAP-1204 Follow-up", identifier: "PAP-1204" }])).toBe(
+      "PAP-1204 Follow-up • Paperclip",
+    );
+  });
+
+  it("ignores blank identifiers", () => {
+    expect(buildDocumentTitle([{ label: "Inbox", identifier: "   " }])).toBe("Inbox • Paperclip");
+  });
 });
