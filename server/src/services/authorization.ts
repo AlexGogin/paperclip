@@ -524,6 +524,36 @@ function activeResponsibleUserCanAuthorizeAgentGrantedSkillChange(
   );
 }
 
+/**
+ * Carve-out for cross-agent manager-subordinate wake (SIA-1900 follow-up).
+ *
+ * `applyResponsibleUserIntersection` re-evaluates every agent-side allow
+ * against the responsible user (the board principal who issued the agent's
+ * heartbeat JWT). For `agent:wake`, the responsible user has no
+ * `permissionForAction` mapping in `PERMISSION_KEYS`, so the user-side check
+ * always returns `deny_unsupported_action` and the agent-side
+ * `allow_manager_chain` decision is overridden by a 403.
+ *
+ * The actor agent is by construction the target agent's manager in the org
+ * chart (we just allowed it via the `agent:wake` manager-chain branch), so
+ * the responsible user intersection adds nothing here. Mirror the
+ * skill_config:update carve-out with the same membership gate.
+ */
+function activeResponsibleUserCanAuthorizeAgentWake(
+  action: AuthorizationAction,
+  membership: ResponsibleUserSnapshot["activeMembership"],
+  agentDecision: AuthorizationDecision,
+) {
+  return Boolean(
+    action === "agent:wake" &&
+      membership &&
+      membership.status === "active" &&
+      membership.membershipRole !== "viewer" &&
+      agentDecision.allowed &&
+      agentDecision.reason === "allow_manager_chain",
+  );
+}
+
 function scopeBoolean(scope: Record<string, unknown> | null | undefined, key: string) {
   return scope?.[key] === true;
 }
@@ -2379,6 +2409,21 @@ export function authorizationService(db: Db | DbTransaction) {
       // grant. The responsible-user intersection still requires an active
       // non-viewer user, but does not require duplicating that grant on the
       // responsible user's board account for standard heartbeat JWTs.
+      return agentDecision;
+    }
+
+    if (
+      activeResponsibleUserCanAuthorizeAgentWake(
+        input.action,
+        snapshot.activeMembership,
+        agentDecision,
+      )
+    ) {
+      // Cross-agent manager-subordinate wake carve-out. The agent-side
+      // allow_manager_chain branch above has already validated the manager
+      // relationship; the responsible user intersection adds nothing here
+      // because agent:wake has no `permissionForAction` mapping to evaluate
+      // on the user side.
       return agentDecision;
     }
 
